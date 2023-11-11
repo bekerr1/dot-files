@@ -1,0 +1,10 @@
+#!/bin/bash
+
+echo "Sourcing .cri_aliases"
+
+CRI=nerdctl
+gcloud_CRI_login() {
+	gcloud auth print-access-token | $CRI login -u oauth2accesstoken --password-stdin us.gcr.io
+}
+
+alias gcl-cri-login='gcloud_CRI_login'

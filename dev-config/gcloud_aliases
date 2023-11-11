@@ -1,0 +1,34 @@
+#!/bin/bash
+
+alias gcloud_asm='gcloud --account=quark-asm@quark-dev-234914.iam.gserviceaccount.com'
+
+GCLOUD_ACCOUNT="brendank@netapp.com"
+GCLOUD_PROJECT="quark-dev-234914"
+gcloud_acc() {
+	gcloud --account=$GCLOUD_ACCOUNT --project=$GCLOUD_PROJECT "$@"
+}
+alias gcl='gcloud_acc'
+
+################################################################
+# Update max-nodes on all node-pools for a GKE cluster
+# parameters are:
+# $1: GKE cluster name
+# $2: GKE cluster location with qualifier (ex: '--zone us-east1')
+# $3: Max node count. Defaults to 10.
+################################################################
+gke.nodePool.updateMaxNodes() {
+    local cluster=$1
+    local location=$2
+    local maxNodes=${3:-10}
+    while read pool; do
+        echo "resizing pool $pool to max node size 10"
+        gcloud container node-pools update $pool --max-nodes=$maxNodes --cluster $cluster $location
+    done < <(gcloud container clusters describe $cluster $location --format "value(nodePools.name)" | tr ";" "\n")
+}
+alias gke-maxNodes='gke.nodePool.updateMaxNodes'
+
+
+gcloud.config.setAccountSSO() {
+    gcloud config set core/account "brendank@netapp.com"
+}
+alias gcl-config-sso='gcloud.config.setAccountSSO'

@@ -1,0 +1,30 @@
+#!/bin/bash
+echo "Sourcing .aliases"
+alias salias="source ~/.aliases"
+source ~/.vim_aliases
+source ~/.screen_aliases
+
+alias ll="ls -lah"
+alias be="br log -e"
+alias brc="source ~/.bashrc"
+alias crictl="CONTAINER_RUNTIME_ENDPOINT='unix:///run/containerd/containerd.sock crictl'"
+alias shared="sudo /usr/bin/vmhgfs-fuse .host:/config/files /shared -o subtype=vmhgfs-fuse,allow_other"
+alias tb="toolbox"
+
+f() {
+    fg %$1
+}
+
++x() {
+    chmod +x "$@"
+}
+
+formatev() {
+	cat "$1" | sed -n '1!p' | sed -E 's/,,/, ,/g' | column -t -s ','
+}
+
+format() {
+	cat "$1" | sed -E 's/,,/, ,/g' | column -t -s ','
+}
+
+alias uuidgen='uuidgen | tr "[:upper:]" "[:lower:]"'

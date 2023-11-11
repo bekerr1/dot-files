@@ -1,0 +1,115 @@
+#!/usr/software/bin/bash
+
+echo "Sourcing .quark_aliases"
+
+getLatestQUARKTag() {
+    local tag;
+    read -r tag < <(gcloud container images list-tags us.gcr.io/netapp-hcl/quark_dmap --filter "tags:(dev-*-non-debug)" --format "value(tags[0])" 2> /dev/null | head -1);
+    echo "$tag"
+}
+
+getLatestQUBETag() {
+    local tag;
+    read -r tag < <(gcloud container images list-tags us.gcr.io/netapp-hcl/quark-operator --filter "tags:(dev-*-non-debug)" --format "value(tags[0])" 2> /dev/null | head -1);
+    echo "$tag"
+}
+
+getQKQUTags() {
+    t1=$(getLatestQUARKTag &)
+    t2=$(getLatestQUBETag &)
+    wait
+    echo "Quark: $t1, QUBE: $t2"
+}
+alias gqt=getQKQUTags
+
+asmc() {
+    k get po -l app=asm-controller -oname
+}
+nvc() {
+    k get po -l app=netapp-volume-controller -oname
+}
+
+createMeshDeployments() {
+    local count=$1
+
+    uuid=$(uuidgen | tr "[:upper:]" "[:lower:]")
+    for i in $(seq 1 $count); do
+        kubectl --context=$CONTEXT apply -f - <<EOF
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ping-$uuid-$i
+  labels:
+    run: ping-$uuid-$i
+    app: ping
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      run: ping-$uuid-$i
+  template:
+    metadata:
+      labels:
+        run: ping-$uuid-$i
+        app: ping
+        istio.io/rev: default
+    spec:
+      containers:
+      - name: nginx
+        image: nginx
+      - name: netshoot
+        image: nicolaka/netshoot
+        command: ["/bin/bash"]
+        args: ["-c", "while true; do ping localhost; sleep 60; done"]
+        #securityContext:
+        #  privileged: true
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ping-$uuid-$i
+  labels:
+    app: ping
+spec:
+  selector:
+    run: ping-$uuid-$i
+  ports:
+  - protocol: TCP
+    port: 80
+    name: nginx-server
+  - protocol: TCP
+    port: 5000
+    targetPort: 3000
+    name: tcp-netcat
+EOF
+    done
+}
+
+createHeadlessService() {
+    local service=$1
+
+    kubectl --context=$CONTEXT apply -f - <<EOF
+apiVersion: v1
+kind: Service
+metadata:
+  name: $service
+  labels:
+    app: ping
+spec:
+  ports:
+  - protocol: TCP
+    port: 80
+    name: nginx-server
+  - protocol: TCP
+    port: 5000
+    targetPort: 3000
+    name: tcp-netcat
+EOF
+}
+
+#annotations:
+#proxy.istio.io/config: "{\"holdApplicationUntilProxyStarts\":true,\"proxyMetadata\":{\"ISTIO_META_DNS_CAPTURE\":\"true\"}}"
+
+deleteMeshDeployments() {
+    kubectl --context=$CONTEXT delete deploy,svc -l app=ping
+}

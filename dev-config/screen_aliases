@@ -1,0 +1,65 @@
+# Create quark screens
+echo "Sourcing .screen_aliases"
+
+quarkscreens() {
+    st scripts
+    st pkg
+    st build/run
+    st cmd
+}
+
+astraproj() {
+    proj=$1
+    deflayer2 $proj
+    screen -X stuff "screen -S ${STY}_layer2_${1} -c ~/.layer2screenrc^M"
+    astrascreens
+}
+
+astrascreens() {
+    st component
+    st astra
+    st pkg
+    st final
+    screen -X stuff -p 3 "screen -S ${STY}_layer3_${1} -c ~/.layer2screenrc^M"
+}
+
+st() {
+    screen -t $1
+    if [ ! -z "$2" ]; then
+	screen -p $1 -X number $2
+    fi
+}
+layerXscreenname() {
+    echo "L$1_${2}-${STY}"
+}
+namedlayer2() {
+    screenId="2"
+    st $1 $2
+    screenName=$(layerXscreenname "$screenId" "$1")
+    screen -X stuff "screen -S $screenName -c ~/.layer2screenrc^M"
+}
+layer2() {
+	screenId="2"
+	screenName=$(layerXscreenname "$screenId" "$1")
+	screen -S $screenName -c ~/.layer2screenrc
+}
+alias nl2=namedlayer2
+alias l2=layer2
+
+namedlayer3() {
+    screenId="3"
+    st $1 $2
+    idArgs=
+    if [ -n "$3" ]; then
+        idArgs="-p $3"
+    fi
+    screenName=$(layerXscreenname "$screenId" "$1")
+    screen -X stuff "screen -S $screenName -c ~/.layer3screenrc^M"
+}
+layer3() {
+	screenId="3"
+	screenName=$(layerXscreenname "$screenId" "$1")
+	screen -S $screenName -c ~/.layer3screenrc
+}
+alias nl3=namedlayer3
+alias l3=layer3

@@ -1,0 +1,266 @@
+echo "Sourcing .seclab_aliases"
+
+export P4EDITOR='vim -u NONE'
+
+alias spud='/u/kstovall/scripts/spud'
+
+alias p4h="cd $HOME/p4"
+alias p4o='p4 opened'
+alias be='br log -e'
+
+mymake() {
+    GOROOT= make "$@"
+}
+
+mymerge() {
+    local src=$1
+    local dest=$2
+
+    echo "reverting any unchanged from $src"
+    cd $src
+    p4 revert -a &> /dev/null
+    cd -
+
+    wsmerge --cit-ok $src $dest
+    if [[ $? -eq 0 ]]; then
+    astraDir="astra/sds/src/astra.netapp.io/astra-sds"
+    echo "Editing all files in $dest/$astraDir"
+    cd $dest/$astraDir
+    p4 edit ./... &> /dev/null
+    cd -
+    fi
+}
+
+mydevchanges() {
+    userdevchanges "brendank"
+}
+alias mdc='mydevchanges'
+
+userdevchanges() {
+    local user=$1
+    changes "$user" "//depot/prod/DOT/dev"
+}
+alias udc='mydevchanges'
+
+changes() {
+    local user=$1
+    local branch=$2
+    p4 changes -u $user -m 120 -s submitted -l ${branch}/...
+}
+
+presubmit() {
+    br make presubmit
+}
+
+rbtest() {
+    /x/eng/csitools/bin/rb_test_monitor -b
+}
+
+devn() {
+    echo "/x/eng/rlse/DOT/devN"
+}
+
+citok() {
+    echo "/x/eng/bbrtp/daemon/DOT/dev/cit-ok/"
+}
+
+dotget() {
+    wsget DOT:dev /u/brendank/p4/$1 brendank:$1
+}
+
+gobuild() {
+    br make gobuild@sds.firetap$1
+}
+
+sdsfinal() {
+    br make sds@final.firetap$1
+}
+
+p4a() {
+    p4 add $1
+}
+
+p4e() {
+    p4 edit $1
+}
+
+alias p4ra="p4 revert -a"
+alias p4ea="p4 edit ./..."
+
+cycl() {
+    ssh brendank@cycrh6rtp$1
+}
+
+cyclbt() {
+    ssh brendank@cyclrtp7.rtp.netapp.com
+}
+
+alias ppap='parsep4astrapath'
+parsep4astrapath() {
+    while read path; do
+        echo "$path" | cut -d '/' -f 12- | cut -d '#' -f 1
+    done
+}
+
+alias ppp='parsep4path'
+parsep4path() {
+    while read path; do
+        echo "$path" | cut -d '#' -f 1
+    done
+}
+
+tbastracreate() {
+    local type=${1:-1x1}
+    local workspace=${2:-/x/eng/rlse/DOT/devN}
+    local workspaceFlag=
+    if [ -n "$workspace" ]; then
+        echo "workspace is $workspace"
+        workspaceFlag="--workspace $workspace"
+    fi
+    /x/eng/rlse/DOT/devN/test/astra/bin/astrads_ctl_reservation_script.py \
+    --type ${type}Node_Astra_Firetap_SharedStorage \
+        --reason new_feature_test_execution \
+        --duration 7 \
+        --is_deploy_operator True \
+        --is_deploy_cluster True \
+        $workspaceFlag
+}
+
+# probably not used with sdsutil available
+tbastraupdate() {
+    local resID=$1
+    /x/eng/rlse/DOT/devN/test/astra/bin/astrads_ctl_reservation_script.py \
+    --res_id $resID \
+        --existing_cluster_cleanup True \
+        --is_deploy_operator True \
+        --is_deploy_cluster True
+}
+
+alias ws='workspace'
+workspace() {
+    export WORKSPACE=$1
+    if [ -n "$KUBECONFIG" ] && [ "$(dirname $KUBECONFIG)" == "$HOME/.kube" ]; then
+        rm $KUBECONFIG
+    fi
+    if [ -n "$WORKSPACE" ]; then
+        if [ -f "artifacts/kubeconfigs/ads1" ]; then
+            cp artifacts/kubeconfigs/ads1 $HOME/.kube/config.$WORKSPACE
+            export KUBECONFIG="$HOME/.kube/config.$WORKSPACE"
+        fi
+        if [ "$WORKSPACE" == "starter" ]; then
+            alias sdsutil="/x/eng/rlse/AstraDS/Rastrads_2021.10xN/test/astra/bin/sdsutil.py"
+            alias astrads="/x/eng/rlse/AstraDS/Rastrads_2021.10xN/final/bedrock/export/firetap/sds/bin/kubectl-astrads"
+        elif [ "$WORKSPACE" == "citok" ]; then
+            alias sdsutil="/x/eng/bbrtp/daemon/DOT/dev/cit-ok/test/astra/bin/sdsutil.py"
+            alias astrads="/x/eng/bbrtp/daemon/DOT/dev/cit-ok/final/bedrock/export/firetap/sds/bin/kubectl-astrads"
+        elif [ "$WORKSPACE" == "ok" ]; then
+            alias sdsutil="/x/eng/bbrtp/daemon/DOT/dev/ok/test/astra/bin/sdsutil.py"
+            alias astrads="/x/eng/bbrtp/daemon/DOT/dev/ok/final/bedrock/export/firetap/sds/bin/kubectl-astrads"
+        elif [ "$WORKSPACE" == "devn" ]; then
+            alias sdsutil="/x/eng/rlse/DOT/devN/test/astra/bin/sdsutil.py"
+            alias astrads="/x/eng/rlse/DOT/devN/final/bedrock/export/firetap/sds/bin/kubectl-astrads"
+        else
+            alias sdsutil="/u/$USER/p4/\$WORKSPACE/test/astra/bin/sdsutil.py"
+            alias astrads="/u/$USER/p4/\$WORKSPACE/final/bedrock/export/firetap/sds/bin/kubectl-astrads"
+        fi
+    fi
+    source ~/.seclab_aliases
+}
+
+
+switchclient() {
+    local client=$1
+    local path=
+    local c=
+    while true; do
+        if [ -z "$c" ]; then
+            c=$(pwd)
+        fi
+        if [ -f "$c/P4ENV" ]; then
+            break
+        fi
+        path=$(basename $c)/$path
+        c=$(dirname $c)
+        echo "$path, $c"
+    done
+    echo "Found P4ENV at $c with path $path. Switching to /u/brendank/p4/$client/$path"
+    cd /u/brendank/p4/$client/$path
+}
+
+switchclientfrom() {
+    local from=$1
+    local to=$2
+    cd $(pwd | sed "s/$from/$to/g")
+}
+
+#switchclientparse() {
+# Parse
+# /x/eng/bbrtp3/users/brendank/
+# /u/brendan/p4/
+#}
+
+alias sc='switchclient'
+alias scf='switchclientfrom'
+#alias scr='switchclientparse'
+
+collectFiretapLogs() {
+    destination=$1
+    if [ -z "$destination" ]; then
+        echo "Need to supply a destination directory"
+        return
+    fi
+    local master=
+    while IFS= read node; do
+        if [ -z "$master" ]; then
+            isMaster=$(kubectl get no $node -o json | jq -r '.metadata.labels."node-role.kubernetes.io/master"')
+            if [ "$isMaster" != "null" ]; then
+                echo "Found Master $node"
+                master=$node
+                continue
+            fi
+        fi
+        echo "Getting firetap logs for worker node $node"
+        mkdir -p $destination/$node
+        scp -r root@$node:/var/netapp/firetap/firegen/persist/var/log/* $destination/$node
+    done < <(kubectl get no -o json | jq -r '.items[].metadata.name')
+}
+
+alias mft='myfixturetest'
+myfixturetest() {
+    local component=$1
+    go test ${component}.go ${component}_test.go ${component}_fixtures.go -v -ginkgo.v -ginkgo.noColor -test.coverprofile ~/web/gocoverage/${component}_coverage.out && \
+    go tool cover -html=$HOME/web/gocoverage/${component}_coverage.out -o=$HOME/web/gocoverage/${component}_coverage.html
+}
+
+ftapi() {
+    verb=$1
+    api=$2
+    data=$3
+    ipAddr=$(kubectl get astradscluster -n astrads-system -o json | jq -r '.items[0].spec.mvip')
+    echo "Running curl -X $verb --insecure --header "Content-Type: application/json" https://$ipAddr/api/$api -d '"$data"'"
+    curl -X $verb --insecure --header "Content-Type: application/json" https://$ipAddr/api/$api -d ''"$data"'' | jq -r
+}
+
+dive() {
+    docker run --rm -it -v /var/run/docker.sock:/var/run/docker.sock wagoodman/dive:latest $@
+}
+
+sdsinstall() {
+    sdsutil --build --load all --install all
+}
+
+sdsall() {
+    sdsutil --uninstall all && sdsutil --build --load all --install all
+}
+
+ctlKubeconfig() {
+    local epNode=$1
+    local ctlDir=$2
+
+    scp brendank@$epNode:$ctlDir/artifacts/kubeconfigs/ads1 ~/.kube/config
+}
+
+ctl-ep-root-pass() {
+    echo "Ab0xB@wks!"
+}
+alias ep-pass='ctl-ep-root-pass'

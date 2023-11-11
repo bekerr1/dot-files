@@ -1,0 +1,565 @@
+#!/bin/bash
+
+echo "Sourcing .kube_aliases"
+
+export KUBE_EDITOR='vim -u NONE'
+
+#alias k="kubectl $@"
+
+netshoot() {
+    kubectl --context=$CONTEXT run netshoot --image nicolaka/netshoot --rm=true -it --privileged=true
+}
+
+metrics() {
+    kubectl port-forward --address 172.16.152.130 pod/$1 8080:9090 -n quark-system
+}
+
+infinite_watch() {
+    while true; do clear && kubectl get $1 --watch $2 && sleep 1; done
+}
+
+less_me() {
+    eval $@ | less -SN
+}
+
+jq_me() {
+	eval $@ | jq -r ''"$PIPERARGS"''
+}
+
+node_name() {
+    local node_name=$(eval "$@ -o=yaml" | grep nodeName | cut -d ' ' -f 4)
+    echo $node_name
+}
+
+zone() {
+    local node_name=$(eval "$@ -o=yaml" | grep nodeName | cut -d ' ' -f 4)
+    kubectl get no $node_name -o json | jq -r '.metadata.labels."topology.kubernetes.io/zone"'
+}
+
+CONTEXT=
+set_context() {
+	export CONTEXT=$1
+}
+alias ctx=set_context
+
+k() {
+	kubectl --context=$CONTEXT "$@"
+}
+
+kc() {
+
+    PROJECT="astra"
+    CMD="kubectl"
+    TMP_FLAGS=
+    FLAGS=
+    NAMED=
+    WRAPPED_CMD=
+    RESOURCE=
+    PIPER=
+    PIPERARGS=
+    EXEC=
+    ADSMODE=
+    while [[ $# -gt 0 ]]
+    do
+        key="$1"
+	echo "Key $key, Resource $RESOURCE"
+
+	if [[ $key =~ '^ads[^ ].*' ]]; then
+		echo "ADS resource match"
+		# If a resource has been set by another key, this is
+		# a resource dependent workflow for this ADS 'subresource'
+		# i.e. "Events for adscl's"
+		if [ -n "$RESOURCE" ]; then
+			case $RESOURCE in
+				events)
+					echo "EVENTS"
+					case $key in
+						adscl)
+							FLAGS="$FLAGS --field-selector='involvedObject.kind=AstraDSCluster'"
+							shift
+							;;
+						*)
+							shift
+							;;
+					esac
+					shift
+					;;
+				*)
+					shift
+					;;
+			esac
+		else
+			RESOURCE=$key
+			shift
+		fi
+		continue
+	else
+		echo "No ADS key '$key'"
+	fi
+        case $key in
+        # Verbs
+	    ads)
+	        CMD="$CMD astrads"
+		ADSMODE=true
+		shift
+		break
+		;;
+	    new)
+	        CMD="$CMD create"
+	        shift
+	        ;;
+            g)
+                CMD="$CMD get"
+                shift
+                ;;
+            d)
+                CMD="$CMD describe"
+		PIPER=less_me
+                shift
+                ;;
+            rm)
+                CMD="$CMD delete"
+                shift
+                ;;
+            l)
+		# Logs of pod with single container
+                CMD="$CMD logs"
+		PIPER=less_me
+                shift
+                ;;
+	    lc)
+		# Logs of specific container in pod
+		CMD="$CMD logs $2 $3"
+		PIPER=less_me
+		shift
+		shift
+		shift
+		;;
+	    lcc)
+		CMD="$CMD logs $2 controller"
+		PIPER=less_me
+		shift
+		shift
+		;;
+	    lcm)
+		CMD="$CMD logs $2 manager"
+		PIPER=less_me
+		shift
+		shift
+		;;
+	    dmsl)
+		# Logs for DMS container in pod
+		CMD="$CMD logs $2 dms-controller"
+		PIPER=less_me
+		shift
+		shift
+		;;
+	    jq)
+		CMD="$CMD get $2 -o json"
+		PIPER=jq_me
+		PIPERARGS=$3
+		shift
+		shift
+		shift
+		;;
+	    ls)
+		CMD="$CMD get po"
+		shift
+		;;
+	    ll)
+		CMD="$CMD get po -o wide"
+		shift
+		;;
+            ex)
+		# Exec pod with single container
+                CMD="$CMD exec -it $2 -- $3"
+                shift
+		shift
+		shift
+                ;;
+	    exc)
+		# Exec pod with multiple containers
+		CMD="$CMD exec -it $2 -c $3 -- $4"
+		shift
+		shift
+		shift
+		shift
+		;;
+	    man)
+		CMD="$CMD explain $2"
+		PIPER=less_me
+		shift
+		shift
+		;;
+            e)
+                CMD="$CMD edit"
+                shift
+                ;;
+            a)
+                CMD="$CMD apply -f"
+                shift
+                ;;
+	    catapp)
+		CMD="cat <<EOF | kubectl apply -f -"
+		EXEC="true"
+		shift
+		;;
+	    newf)
+		CMD="$CMD create -f"
+		shift
+		;;
+	    rmf)
+		CMD="$CMD delete -f"
+		shift
+		;;
+	    infwatch)
+		WRAPPED_CMD=infinite_watch
+		CMD=
+		shift
+		;;
+	    node)
+		CMD="$CMD get"
+		PIPER=node_name
+		shift
+		;;
+	    zone)
+		CMD="$CMD get"
+		PIPER=zone
+		shift
+		;;
+	    switchns)
+		CMD="$CMD config set-context --current --namespace=$2"
+		shift
+		shift
+		;;
+	    astrans)
+		CMD="$CMD config set-context --current --namespace=astrads-system"
+		shift
+		;;
+	    kubens)
+		CMD="$CMD config set-context --current --namespace=kube-system"
+		shift
+		;;
+        # Resources
+            po)
+		RESOURCE=pods
+                shift
+                ;;
+	    jo)
+		RESOURCE=jobs
+		shift
+		;;
+	    cfg)
+		RESOURCE=config
+		shift
+		;;
+            dep)
+		RESOURCE=deployment
+                shift
+                ;;
+	    ss)
+		RESOURCE=statefulset
+		shift
+		;;
+            sec)
+		RESOURCE=secret
+                shift
+                ;;
+            in)
+		RESOURCE=ingress
+                shift
+                ;;
+            no)
+		RESOURCE=nodes
+                shift
+                ;;
+	    noz)
+		RESOURCE=nodes
+		FLAGS="-L topology.kubernetes.io/zone"
+		shift
+		;;
+            svc)
+		RESOURCE=service
+                shift
+                ;;
+            ns)
+		RESOURCE=namespaces
+                shift
+                ;;
+            vol)
+		if [ "$PROJECT" == "astra" ]; then
+		        RESOURCE=astradsvolume
+		elif [ "$PROJECT" == "quark" ]; then
+		        RESOURCE=netappvolume
+		else
+		        RESOURCE=volume
+		fi
+                shift
+                ;;
+	    etcd)
+		RESOURCE=etcdclusters
+		shift
+		;;
+	    cluster)
+		RESOURCE=astradscluster
+		shift
+		;;
+	    files)
+		RESOURCE=astradsvolumefiles
+		shift
+		;;
+	    qos)
+		RESOURCE=astradsqospolicy
+		shift
+		;;
+	    asup)
+		RESOURCE=astradsautosupports
+		shift
+		;;
+	    svclvl)
+		RESOURCE=netappservicelevel
+		shift
+		;;
+	    exp)
+		if [ "$PROJECT" == "astra" ]; then
+		        RESOURCE=astradsexportpolicy
+		elif [ "$PROJECT" == "quark" ]; then
+		        RESOURCE=netappexportpolicy
+		else
+		        RESOURCE=exportpolicy
+		fi
+		shift
+		;;
+            snap)
+		RESOURCE=netappsnapshotpolicy
+                shift
+                ;;
+	    ntapcs)
+		RESOURCE=netappvolumecloudsnapshot
+		shift
+		;;
+	    cs)
+		RESOURCE=astradscloudsnapshot
+		shift
+		;;
+            cm)
+		RESOURCE=configmap
+                shift
+                ;;
+	    nvccm)
+		RESOURCE=configmap
+		NAMED="netapp-volume-controller-config"
+		shift
+		;;
+	    rhacm)
+		RESOURCE=configmap
+		NAMED="regional-ha-config"
+		shift
+		;;
+	    cascm)
+		RESOURCE=configmap
+		NAMED="cluster-autoscaler-status"
+		FLAGS="--namespace kube-system"
+		shift
+		;;
+	    crb)
+		RESOURCE=clusterrolebinding
+		shift
+		;;
+	    cro)
+		RESOURCE=clusterrole
+		shift
+		;;
+	    crd)
+		RESOURCE=customresourcedefinition
+		shift
+		;;
+	    rb)
+		RESOURCE=rolebinding
+		shift
+		;;
+	    ro)
+		RESOURCE=role
+		shift
+		;;
+	    sa)
+		RESOURCE=serviceaccount
+		shift
+		;;
+	    pvc)
+		RESOURCE=persistentvolumeclaim
+		shift
+		;;
+	    pv)
+		RESOURCE=persistentvolume
+		shift
+		;;
+	    sc)
+		RESOURCE=storageclass
+		shift
+		;;
+	    pc)
+		RESOURCE=priorityclass
+		shift
+		;;
+	    pdb)
+		RESOURCE=poddisruptionbudget
+		shift
+		;;
+	    ev)
+		RESOURCE=events
+		FLAGS="$FLAGS --sort-by='.lastTimestamp'"
+		PIPER=less_me
+		shift
+		;;
+	    ds)
+		RESOURCE=daemonsets
+		shift
+		;;
+	    rs)
+		RESOURCE=replicaset
+		shift
+		;;
+	    qu)
+		RESOURCE=quark
+		shift
+		;;
+        # Flags
+            ksys)
+                FLAGS="$FLAGS --namespace=kube-system"
+                shift
+                ;;
+	    qrksys)
+		FLAGS="$FLAGS --namespace=quark-system"
+		shift
+		;;
+	    adssys)
+		FLAGS="$FLAGS --namespace=astrads-system"
+		shift
+		;;
+	    sys)
+		if [ "$PROJECT" == "astra" ]; then
+		        FLAGS="$FLAGS --namespace=astrads-system"
+		elif [ "$PROJECT" == "quark" ]; then
+		        FLAGS="$FLAGS --namespace=quark-system"
+		else
+		        FLAGS="$FLAGS --namespace=kube-system"
+		fi
+		shift
+		;;
+            n)
+                FLAGS="$FLAGS --namespace=$2"
+                shift
+                shift
+                ;;
+            yaml)
+                FLAGS="$FLAGS --output=yaml"
+		PIPER=less_me
+                shift
+                ;;
+            json)
+                FLAGS="$FLAGS --output=json"
+		PIPER=less_me
+                shift
+                ;;
+	    jsonpath)
+		FLAGS="$FLAGS --output=jsonpath='$2'"
+		shift
+		shift
+		;;
+            f)
+                FLAGS="$FLAGS --file $2"
+                shift
+		shift
+                ;;
+	    fo)
+		FLAGS="$FLAGS --follow"
+		PIPER=
+		shift
+		shift
+		;;
+            allns)
+                FLAGS="$FLAGS --all-namespaces"
+                shift
+                ;;
+            all)
+                FLAGS="$FLAGS --all"
+                shift
+                ;;
+            w)
+                FLAGS="$FLAGS --watch"
+		PIPER=
+                shift
+                ;;
+            wide)
+                FLAGS="$FLAGS --output=wide"
+		PIPER=less_me
+                shift
+                ;;
+	    cc)
+		FLAGS="$FLAGS --output=custom-columns=$2"
+		PIPER=less_me
+		shift
+		shift
+		;;
+	    field)
+		FLAGS="$FLAGS --field-selector=$2"
+		PIPER=less_me
+		shift
+		shift
+		;;
+	    label)
+		FLAGS="$FLAGS -l $2"
+		shift
+		shift
+		;;
+	    ccf)
+		FLAGS="$FLAGS -o custom-columns-file=$2"
+		shift
+		shift
+		;;
+	    prev)
+		FLAGS="$FLAGS --previous"
+		shift
+		;;
+	    h)
+		FLAGS="$FLAGS -h"
+		shift
+		shift
+		;;
+            *)
+                echo "Treating $key as parameter."
+                NAMED=$key
+                shift
+                ;;
+        esac
+    done
+
+    if [ -n "$ADSMODE" ]; then
+	    $CMD $@
+	    return
+    fi
+
+    if [ -n "$WRAPPED_CMD" ]; then
+	echo "Command $WRAPPED_CMD $RESOURCE $FLAGS"
+	$WRAPPED_CMD "$RESOURCE" "$FLAGS"
+    else
+	CMD="$CMD $RESOURCE $NAMED $FLAGS"
+	if [ ! -z "$PIPER" ]; then
+	    echo Command "$PIPER $CMD"
+	    $PIPER $CMD
+        elif [ -n "$EXEC" ]; then
+	    exec "$CMD"
+	else
+	    echo "Command $CMD"
+	    $CMD
+	fi
+    fi
+
+}
+
+kubeconfig_secret() {
+	local kubefile=$1
+	python3 -c 'import sys, yaml, json; json.dump(yaml.load(sys.stdin), sys.stdout, indent=None)' < $kubefile > kubeconfig.json
+	cat kubeconfig.json | base64 | tr -d '\n'
+}
