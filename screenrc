@@ -1,0 +1,7 @@
+altscreen on
+hardstatus alwayslastline
+hardstatus string "%{= Kw} %H %{= Kw}|%{-} %-Lw%{= Rw}%n%f %t%{-}%+Lw %=%C%a %Y-%M-%d"
+startup_message off
+defshell -bash
+utf8 on
+bindkey "^D" echo "No!"

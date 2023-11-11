@@ -1,0 +1,11 @@
+startup_message off
+altscreen on
+vbell off
+escape ^Ww
+hardstatus alwayslastline
+hardstatus string '%{= kG}[ %{G}Layer2 %{g}][%= %{= kw}%?%-Lw%?%{r}(%{W}%n*%f%t%?(%u)%?%{r})%{w}%?%+Lw%?%? %= %{g}][%{B} %m/%d %{W}%c %{g}]'
+defscrollback 50000
+defshell -bash
+term xterm
+utf8 on
+bindkey "^D" echo "No!"
