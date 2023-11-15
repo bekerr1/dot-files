@@ -1,8 +1,6 @@
 #!/bin/bash
 echo "Sourcing .aliases"
 alias salias="source ~/.aliases"
-source ~/.vim_aliases
-source ~/.screen_aliases
 
 alias ll="ls -lah"
 alias be="br log -e"

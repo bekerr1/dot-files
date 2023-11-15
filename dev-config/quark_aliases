@@ -1,5 +1,3 @@
-#!/usr/software/bin/bash
-
 echo "Sourcing .quark_aliases"
 
 getLatestQUARKTag() {
