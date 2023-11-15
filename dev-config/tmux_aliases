@@ -1,0 +1,7 @@
+echo "Sourcing .tmux_aliases"
+
+alias tmuxls='tmux list-sessions'
+
+tw() {
+    tmux neww -n $1 -t $2
+}
