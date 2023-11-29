@@ -10,9 +10,18 @@ local plugins = {
     "williamboman/mason.nvim",
     opts = {
       ensure_installed = {
-        "clangd"
+        "clangd",
+        "gopls",
+        "gofumpt"
       }
     }
-  }
+  },
+  {
+    "jose-elias-alvarez/null-ls.nvim",
+    ft = "go",
+    opts = function()
+      return require "custom.configs.null-ls"
+    end,
+  },
 }
 return plugins
