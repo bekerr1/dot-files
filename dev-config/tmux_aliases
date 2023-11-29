@@ -3,5 +3,5 @@ echo "Sourcing .tmux_aliases"
 alias tmuxls='tmux list-sessions'
 
 tw() {
-    tmux neww -n $1 -t $2
+    tmux new-window -n $1 -t $2 -c "#{pane_current_path}"
 }
