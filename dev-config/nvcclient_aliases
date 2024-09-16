@@ -1,0 +1,278 @@
+echo "Sourcing .nvcclient_aliases"
+
+set -x
+
+CURRENT_CONTEXT=""
+kubectlc() {
+  kubectl --context=$CONTEXT "$@"
+}
+
+echoexit() {
+  echo "$@"
+}
+
+set-context() {
+  if [[ "$CONTEXT" == "" ]]; then
+    CONTEXT=$(kubectl config current-context)
+  fi
+  if [[ ! -f $HOME/.kube/$CONTEXT-config ]]; then 
+    cp $HOME/.kube/config $HOME/.kube/$CONTEXT-config
+  fi
+  export KUBECONFIG="$HOME/.kube/$CONTEXT-config"
+  echo "Using kubeconfig $HOME/.kube/$CONTEXT-config with context $CONTEXT"
+  kubectl config use-context $CONTEXT &> /dev/null
+}
+
+NVCCLIENTCLI=${NVCCLIENTCLI:-$(which nvcclientcli)}
+set-nvcclientcli() {
+  if [[ ! -f $NVCCLIENTCLI ]]; then
+    echo "no NVCCLIENTCLI supplied. trying ./bin/nvcclientcli"
+    NVCCLIENTCLI=./bin/nvcclientcli
+  fi
+  if [[ ! -f $NVCCLIENTCLI ]]; then
+    echo "couldnt find an NVCCLIENTCLI path"
+    return 1
+  fi
+}
+
+# linux like macos uuidgen
+my_uuidgen() { uuidgen | tr "[:upper:]" "[:lower:]"; }
+first_uuid_part() { echo "$1" | cut -d '-' -f 1; }
+
+CLU_PROJECT=${CLU_PROJECT:-}
+CLU_RESOURCE_GROUP=${CLU_RESOURCE_GROUP:-}
+
+CLU_LOCATION=${CLU_LOCATION:-}
+CLU_NAME=${CLU_NAME:-}
+
+
+create-storage() {
+  set-context
+
+  set-nvcclientcli || return
+
+  echo "Creating storage on cloud $CLOUD for protocols $PROTOCOLS"
+  set-cloud-args
+
+  local spuuid=$(my_uuidgen)
+  local voluuid=$(my_uuidgen)
+
+  create-sp $spuuid && create-vol $spuuid $voluuid || echo "failed to create storage"
+}
+
+NAMESPACE=${NAMESPACE:-}
+
+STORAGE_SIZE=${STORAGE_SIZE:-"1Ti"}
+VOLUME_SIZE=${VOLUME_SIZE:-"500Gi"}
+
+CLOUD=${CLOUD:-gcp}
+CLOUD_ARGS=""
+
+PROTOCOLS=${PROTOCOLS:-nfs3}
+PROTOCOL_ARGS=""
+AD_DNS=""
+
+create-sp() {
+  local spuuid=$1
+
+  if ! $NVCCLIENTCLI storage_pool create \
+    --k8s_config $HOME/.kube/config \
+    --k8s_namespace ${NAMESPACE:-"atom-quark"} \
+    --owner_id $USER \
+    --display_name $CLU_NAME-$(first_uuid_part "$spuuid") \
+    --size $STORAGE_SIZE \
+    --sp_uuid $spuuid \
+    $CLOUD_ARGS \
+    $PROTOCOL_ARGS; then
+    echo "Failed to create SP"
+    return 1
+  fi
+  until kubectlc wait -n $NAMESPACE ntapsp/$spuuid --for=condition=Online 2> /dev/null; do sleep 10; done
+}
+
+create-vol() {
+  local spuuid=$1
+  local voluuid=${2:-$(my_uuidgen)}
+
+  local protocolArgs=""
+  case $PROTOCOLS in
+  nfs*)
+    create-exp-policy $spuuid $voluuid
+    protocolArgs="--export_policy_name $(exp-policy-name $spuuid $voluuid)"
+    ;;
+  smb)
+    create_smb_resources $spuuid
+		protocolArgs="--abe False --encrypt False"
+    ;;
+  *)
+    ;;
+  esac
+
+  create-snap-policy $spuuid $voluuid
+
+  $NVCCLIENTCLI volume create \
+    --k8s_config $HOME/.kube/config \
+    --k8s_namespace ${NAMESPACE:-"atom-quark"} \
+    --protocols $PROTOCOLS \
+    --mount_path sp-$(first_uuid_part "$spuuid")-vol-$(first_uuid_part "$voluuid") \
+    --owner_id $USER \
+    --snapshot_policy_name $(snap-policy-name $spuuid $voluuid) \
+    --sp_uuid $spuuid \
+    --uuid $voluuid \
+    --volume_name sp-$(first_uuid_part "$spuuid")-vol-$(first_uuid_part "$voluuid") \
+    --volume_size $VOLUME_SIZE \
+    $protocolArgs
+  until out=$(kubectlc wait -n $NAMESPACE ntapvol/$voluuid --for=condition=Online 2>&1); do sleep 10; done
+}
+
+create-exp-policy() {
+  allowall_exppolicy $1 $2 | kubectlc apply -f -
+}
+
+create-snap-policy() {
+  generic_snapshot_policy $1 $2 | kubectlc apply -f -
+}
+
+exp-policy-name() {
+  echo "allowall-$(first_uuid_part $spuuid)-$(first_uuid_part $voluuid)"
+}
+
+snap-policy-name() {
+  echo "snappolicy-$(first_uuid_part $spuuid)-$(first_uuid_part $voluuid)"
+}
+
+generic_snapshot_policy() {
+  local spuuid=$1
+  local voluuid=$2
+
+  cat <<EOF
+apiVersion: quark.netapp.io/v1alpha1
+kind: NetAppSnapshotPolicy
+metadata:
+  name: $(snap-policy-name $spuuid $voluuid)
+  namespace: $NAMESPACE
+  labels:
+    quark.netapp.io/volume: $voluuid
+    quark.netapp.io/owner: $USER
+    quark.netapp.io/storagePool: $spuuid
+spec:
+  enabled: true      
+  schedules:
+  - daysOfWeek: [0] 
+    hours: [0]
+    minutes: [0]
+    prefix: "weekly"
+    snapshotsToKeep: 1
+EOF
+}
+
+allowall_exppolicy() {
+  local spuuid=$1
+  local voluuid=$2
+
+  local expName="$(exp-policy-name $spuuid $voluuid)"
+
+  cat <<EOF
+apiVersion: quark.netapp.io/v1alpha1
+kind: NetAppExportPolicy
+metadata:
+  name: $expName
+  namespace: ${NAMESPACE:-"atom-quark"}
+  labels:
+    quark.netapp.io/owner: $USER
+    quark.netapp.io/storagePool: $spuuid
+    quark.netapp.io/volume: $voluuid
+spec:
+  rules:
+  - clients: 0.0.0.0/0
+    accessMode: rw
+    securityType: unix
+    protocol: $PROTOCOLS
+    ruleIndex: 1
+EOF
+}
+
+create_smb_resources() {
+	local sp=$1
+	kubectlc apply -f - <<EOF
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ${sp}ad-create
+type: Opaque
+stringData:
+  password: "Adinstance1234!"
+  username: "quark-admin"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ${sp}ad-delete
+type: Opaque
+stringData:
+  password: "Adinstance1234!"
+  username: "quark-admin"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: "secd-dns-config"
+data:
+  resolv.conf: |
+    nameserver $AD_DNS
+EOF
+}
+
+set-common-protocol-args() {
+  case $PROTOCOLS in 
+  smb)
+    random=$((1 + RANDOM % 99))
+    PROTOCOL_ARGS="--netbios test${random} --org_unit CN=computers --enc_ad_comm False"
+    ;;
+  *)
+    ;;
+  esac
+}
+
+set-gcp-protocol-args() {
+  set-common-protocol-args
+  case $PROTOCOLS in 
+  smb)
+    AD_DNS="10.0.0.21"
+    PROTOCOL_ARGS="$PROTOCOL_ARGS --ad_user netappadmin --ad_password Adinstance123!"
+    PROTOCOL_ARGS="$PROTOCOL_ARGS --dns_ips $AD_DNS --fqdn test.com"
+    ;;
+  esac
+}
+
+set-az-protocol-args() {
+  set-common-protocol-args
+  case $PROTOCOLS in 
+  smb)
+    AD_DNS="10.1.0.4"
+    PROTOCOL_ARGS="$PROTOCOL_ARGS --ad_user quark-admin --ad_password Adinstance1234!"
+    PROTOCOL_ARGS="$PROTOCOL_ARGS --dns_ips $AD_DNS --fqdn smbtest.com"
+    ;;
+  esac
+}
+
+set-cloud-args() {
+  case $CLOUD in
+  gcp)
+    NAMESPACE=${NAMESPACE:-"atom-quark"}
+    IFS=_ read -r _ CLU_PROJECT CLU_LOCATION CLU_NAME < <(echo "$CONTEXT")
+    CLOUD_ARGS="--ilb_subnets $(gcloud compute networks subnets list --filter "network:quark-dev-producer AND region:$CLU_LOCATION AND name:-ilb" --format "value(selfLink)")"
+    CLOUD_ARGS="$CLOUD_ARGS --zone $CLU_LOCATION-b --available_zones $CLU_LOCATION-b"
+    set-gcp-protocol-args
+    ;;
+  azure)
+    CLU_NAME=$CONTEXT
+    CLU_RESOURCE_GROUP="$USER-nvc"
+    #CLU_LOCATION=$(az aks show --resource-group=$CLU_RESOURCE_GROUP -n $CLU_NAME --query "location" --output tsv)
+    #CLOUD_ARGS="--zone $CLU_LOCATION-1 --available_zones $CLU_LOCATION-1"
+    CLOUD_ARGS="$CLOUD_ARGS --delegated_subnets 0de2a4d2-7957-4680-9f5f-7b1ffc04afc8"
+    set-az-protocol-args
+    ;;
+  esac
+}
+

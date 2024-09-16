@@ -1,0 +1,40 @@
+echo "Sourcing .azure_aliases"
+my-aks-clusters() {
+  az aks list -g brendank-nvc -otable
+}
+
+az-ssh() {
+  az ssh vm -g brendank-nvc-client -n brendank-nfs-client --local-user client
+}
+
+az-login() {
+  az login --scope https://management.core.windows.net//.default
+}
+
+acr-login-nm() {
+  az acr login --name quark
+}
+acr-login-mm() {
+  az acr login --name quark3
+}
+
+mmqs-login() {
+  az account set --subscription $(mmqs)
+  az-login
+}
+nmqs-login() {
+  az account set --subscription $(nmqs)
+  az-login
+}
+
+
+mmqs() {
+  echo "e3e8712f-8cda-4bce-8945-724815ce1fe3"
+}
+nmqs() {
+  echo "142fde46-7458-4d38-9ed8-549049cab3e6"
+}
+
+us-regions() {
+  az account list-locations --output table | grep -i 'us'
+}
