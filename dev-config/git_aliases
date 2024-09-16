@@ -41,3 +41,7 @@ function tag() {
     local hash=$(git log --pretty=format:'%h' -n 1)
     echo "$USER-$hash"
 }
+
+function gb-rename() {
+  git branch -m $1
+}

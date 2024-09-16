@@ -32,3 +32,7 @@ gcloud.config.setAccountSSO() {
     gcloud config set core/account "brendank@netapp.com"
 }
 alias gcl-config-sso='gcloud.config.setAccountSSO'
+
+my-gke-clusters() {
+    gcloud container clusters list --filter "name:brendank"
+}

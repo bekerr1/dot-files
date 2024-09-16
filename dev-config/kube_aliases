@@ -36,18 +36,30 @@ zone() {
     kubectl get no $node_name -o json | jq -r '.metadata.labels."topology.kubernetes.io/zone"'
 }
 
+set-ns() {
+  kubectl config set-context --current --namespace $1
+}
+alias sns=set-ns
+
 CONTEXT=
 set_context() {
+  if [[ -z "$1" ]]; then
+    export CONTEXT=$(kubectl config current-context)
+  fi
 	export CONTEXT=$1
 }
 alias ctx=set_context
+
+use-context() {
+  kubectl config use-context $CONTEXT
+}
+alias use-ctx=use-context
 
 k() {
 	kubectl --context=$CONTEXT "$@"
 }
 
 kc() {
-
     PROJECT="astra"
     CMD="kubectl"
     TMP_FLAGS=
@@ -562,4 +574,45 @@ kubeconfig_secret() {
 	local kubefile=$1
 	python3 -c 'import sys, yaml, json; json.dump(yaml.load(sys.stdin), sys.stdout, indent=None)' < $kubefile > kubeconfig.json
 	cat kubeconfig.json | base64 | tr -d '\n'
+}
+
+deployFromCode() {
+  case $1 in 
+    op) echo "quark-operator" ;;
+    nvc) echo "netapp-volume-controller" ;;
+  esac
+}
+
+patch_deploy_image() {
+  deploy="deploy/$(deployFromCode $1)"
+  image=$(k get $deploy -ojsonpath='{.spec.template.spec.containers[0].image}')
+  container=$(k get $deploy -ojsonpath='{.spec.template.spec.containers[0].name}')
+  pullPolicy=$(k get $deploy -ojsonpath='{.spec.template.spec.containers[0].imagePullPolicy}')
+
+  imageNoTag=$(echo $image | cut -d ":" -f 1)
+  newImage="$imageNoTag:$2"
+
+  # if the images are the same, ImagePullPolicy should be Always
+  # and a restart should do
+  if [[ $image == $newImage ]]; then
+    [[ $pullPolicy != "Always" ]] && echo "rollout doesnt apply for policy $pullPolicy where current image == desired" && return 1
+    k rollout restart $deploy 
+  else
+    k set image $deploy $container=$newImage
+  fi
+}
+
+ksniff() {
+  kubectl sniff --context=$CONTEXT "$@"
+}
+
+isctl() {
+  istioctl --context=$CONTEXT "$@"
+}
+
+kevents() {
+  local ns=$1
+  nsFlag=
+  [[ -n $ns ]] && nsFlag="-n $ns"
+  kubectl --context=$CONTEXT get events --sort-by='.lastTimestamp' $nsFlag
 }

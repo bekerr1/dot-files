@@ -1,7 +1,23 @@
 echo "Sourcing .tmux_aliases"
 
-alias tmuxls='tmux list-sessions'
+alias tmls='tmux list-sessions'
 
-tw() {
+tms() {
+  tmux new -s $1
+}
+
+tmks() {
+  tmux kill-session -s $1
+}
+
+tmka() {
+  tmux kill-session
+}
+
+tmw() {
     tmux new-window -n $1 -t $2 -c "#{pane_current_path}"
+}
+
+act() {
+  tmux -L $TMUX_PARENT source-file ~/.tmux.conf.d/active-row.conf
 }

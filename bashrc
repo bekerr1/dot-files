@@ -1,3 +1,5 @@
+tput cup 9999 0
+
 echo Hi Brendan, from .bashrc
 alias sbrc="source ~/.bashrc"
 alias vbrc="vim ~/.bashrc"
@@ -53,3 +55,5 @@ if [ -f '$HOME/google-cloud-sdk/path.bash.inc' ]; then . '$HOME/google-cloud-sdk
 
 # The next line enables shell command completion for gcloud.
 if [ -f '$HOME/google-cloud-sdk/completion.bash.inc' ]; then . '$HOME/google-cloud-sdk/completion.bash.inc'; fi
+
+cat $HOME/.bashintro.txt

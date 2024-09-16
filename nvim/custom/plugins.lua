@@ -11,8 +11,11 @@ local plugins = {
     opts = {
       ensure_installed = {
         "clangd",
+        -- golang
         "gopls",
-        "gofumpt"
+        "gofumpt",
+        -- bash
+        "shfmt",
       }
     }
   },

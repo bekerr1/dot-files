@@ -2,9 +2,40 @@
 
 echo "Sourcing .cri_aliases"
 
-CRI=nerdctl
-gcloud_CRI_login() {
-	gcloud auth print-access-token | $CRI login -u oauth2accesstoken --password-stdin us.gcr.io
+#CRI=${CRI:-nerdctl}
+CRI=${CRI:-docker}
+
+gcl-cri-login() {
+	gcloud auth print-access-token --lifetime 43200 | $CRI login -u oauth2accesstoken --password-stdin us.gcr.io
 }
 
-alias gcl-cri-login='gcloud_CRI_login'
+az-cri-login() {
+  TOKEN=$(az acr login --name quark.azurecr.io --expose-token --output tsv --query accessToken)
+  emptyUUID="00000000-0000-0000-0000-000000000000"
+  $CRI login quark.azurecr.io -u $emptyUUID --password-stdin <<< $TOKEN
+}
+
+CLOUD=${CLOUD:-gcp}
+
+pull_push() {
+  local imageAndTag=$1
+  # this is the repo i mostly want to pull private images from
+  local src=${2:-docker.repo.eng.netapp.com/brendank}
+  # these are the repos i would push to
+  local dest=${3:-$(dest_for_cloud)}
+
+  $CRI pull $src/$imageAndTag
+  $CRI tag $src/$imageAndTag $dest/$imageAndTag
+  $CRI push $dest/$imageAndTag
+}
+
+dest_for_cloud() {
+  case $CLOUD in
+    gcp)
+      echo "us.gcr.io/netapp-hcl"
+      ;;
+    azure)
+      echo "quark.azurecr.io"
+      ;;
+  esac
+}

@@ -1,24 +1,59 @@
 echo "Sourcing .quark_aliases"
 
+k8sflags="--k8s_namespace atom-quark --k8s_config $HOME/.kube/config"
+
+export DEV_NATIVE_BUILD=true
+
+nsc-logs-node() {
+    local node=$1
+    local follow=${2:-true}
+    local flags=""
+    if [[ "$follow" == "true" ]]; then
+        flags="-f"
+    fi
+    nscPodName=$(k get po -n quark-system -l app=ntapvol-daemonset -ojson | jq -r '.items[] | select(.spec.nodeName=='\"$node\"') | .metadata.name')
+    k logs $nscPodName -n quark-system $flags
+}
+
 getLatestQUARKTag() {
-    local tag;
-    read -r tag < <(gcloud container images list-tags us.gcr.io/netapp-hcl/quark_dmap --filter "tags:(dev-*-non-debug)" --format "value(tags[0])" 2> /dev/null | head -1);
-    echo "$tag"
+    local cloud=${1:-gcp}
+    getImageFromRepo quark_dmap $cloud
 }
 
 getLatestQUBETag() {
-    local tag;
-    read -r tag < <(gcloud container images list-tags us.gcr.io/netapp-hcl/quark-operator --filter "tags:(dev-*-non-debug)" --format "value(tags[0])" 2> /dev/null | head -1);
+    local cloud=${1:-gcp}
+    getImageFromRepo quark-operator $cloud
+}
+
+getImageFromRepo() {
+    local repoImage=$1
+    local cloud=${2:-gcp}
+    case $cloud in 
+      gcp)
+        read -r tag < <(gcloud container images list-tags us.gcr.io/netapp-hcl/$repoImage --filter "tags:(dev-*-non-debug)" --format "value(tags[0])" 2> /dev/null | head -1);
+      ;;
+      az)
+        read -r tag < <(az acr repository show-tags -n quark --repository $repoImage -otsv | grep -E "dev-.*-non-debug" | tail -n1)
+      ;;
+    esac
     echo "$tag"
 }
 
 getQKQUTags() {
-    t1=$(getLatestQUARKTag &)
-    t2=$(getLatestQUBETag &)
+    local cloud=${1:-gcp}
+    t1=$(getLatestQUARKTag $cloud &)
+    t2=$(getLatestQUBETag $cloud &)
     wait
-    echo "Quark: $t1, QUBE: $t2"
+    echo "-d $t1 -a $t2"
 }
 alias gqt=getQKQUTags
+
+
+dev-build-nvcclientcli() {
+    cp $HOME/bin/Makefile Makefile.nvcclientclionly
+    make build-nvcclientcli -f Makefile.nvcclientclionly
+    rm Makefile.nvcclientclionly
+}
 
 asmc() {
     k get po -l app=asm-controller -oname
@@ -27,7 +62,110 @@ nvc() {
     k get po -l app=netapp-volume-controller -oname
 }
 
-createMeshDeployments() {
+# pod name only
+sppn() {
+    local sp=$1
+    pod=$(spp "$sp")
+    echo "$pod" | cut -d '/' -f2
+}
+
+# pod name with type 'pod/<name>'
+spp() {
+    local sp=$1
+    local label="quark.netapp.io/storagePool"
+    if [[ -n "$sp" ]]; then
+        label="$label=$sp"
+    fi
+    k get po -l $label -oname
+}
+
+prom() {
+    k get po -l app=prometheus -n quark-system -oname
+}
+
+port-forward-prom() {
+    k port-forward -n quark-system $(prom) 9090
+}
+
+csm_session() {
+    local spp=$1
+    k exec $spp -- bash -c "CMD csm session show && CMD csm lif-pairing show" || true
+}
+ 
+foreach_sp() {
+    local fn=$1
+    while IFS= read -r sp; do
+        echo "running '$fn' for sp $sp"
+        $fn $sp
+        echo ""
+    done < <(k get po -l quark.netapp.io/storagePool -oname)
+}
+
+spp_count() {
+    local sp=$1
+	  k get po -l quark.netapp.io/storagePool=$sp -ojson | jq -r '.items | length'
+}
+
+spp_priority() {
+    local sp=$1
+	  k get po -l quark.netapp.io/storagePool=$sp -ojsonpath='{.items[0].spec.priority}'
+}
+
+io_client() {
+    if [[ ! -f $(pwd)/quark.sh ]]; then
+        echo "Quark.sh doesnt exist in $(pwd)"
+        return
+    fi
+    CLIENT_NAME=brendank-io-client CLIENT_VM_SIZE=n2-standard-8 USE_EXISTING_SETUP=false $(pwd)/quark.sh -V
+
+}
+
+# If you start this method when a SP pod doesnt exist it will wait for one 
+# If you start this method when one exists it will wait for it to restart
+# Use 'sniff_dmap_ready' if you want to run k sniff immidiatly
+wait_sniff_dmap_ready() {
+    local sp=$1
+    curSPCount=$(spp_count $sp)
+    if [[ $curSPCount -eq 0 ]]; then
+        until [[ $(spp_count $sp) -eq 1 ]]; do
+            echo "Waiting for a SP to exist"
+            sleep 1
+        done
+        # Account for initial low-priority pod
+        until [[ $(spp_priority $sp) -eq 0 ]]; do 
+            echo "Waiting for SP pod with priority 0"
+        done
+    else
+        echo "SP count is $curSPCount"
+        until [[ $(spp_count $sp) -eq 2 ]]; do
+            echo "Waiting for one SP pod to be deleted and nother to be initializing"
+            sleep 1
+        done
+        until [[ $(spp_count $sp) -eq 1 ]]; do
+            echo "Waiting for terminating pod to dissapear"
+            sleep 1
+        done
+    fi
+
+    sniff_dmap_ready $sp
+}
+
+sniff_dmap_ready() {
+    local sp=$1
+
+    curPod=$(spp $sp)
+    dmapst=$(k get $curPod -ojsonpath='{.status.containerStatuses[?(@.name=="dmap")].ready}')
+    until [[ "$dmapst" == "true" ]]; do 
+    	dmapst=$(k get $curPod -ojsonpath='{.status.containerStatuses[?(@.name=="dmap")].ready}')
+    	echo "Dmap ready state is '$dmapst'. Waiting for 'true'"
+    	sleep 1
+    done
+
+    pn=$(sppn $sp)
+    kubectl sniff --context=$CONTEXT $pn -o "${sp}-${pn: -4}.pcap"
+}
+
+createMeshResources() {
     local count=$1
 
     uuid=$(uuidgen | tr "[:upper:]" "[:lower:]")
@@ -47,20 +185,23 @@ spec:
       run: ping-$uuid-$i
   template:
     metadata:
+      annotations:
+        proxy.istio.io/config: '{ "proxyMetadata": { "ISTIO_META_DNS_CAPTURE": "false" }}'
+        traffic.sidecar.istio.io/includeInboundPorts: "5000"
+        traffic.sidecar.istio.io/includeOutboundPorts: "5000"
+        traffic.sidecar.istio.io/includeOutboundIPRanges: "127.0.0.1/32"
+        sidecar.istio.io/componentLogLevel: "conn_handler:debug,filter:debug,router:debug,connection:debug"
       labels:
         run: ping-$uuid-$i
         app: ping
-        istio.io/rev: default
     spec:
       containers:
-      - name: nginx
-        image: nginx
       - name: netshoot
         image: nicolaka/netshoot
         command: ["/bin/bash"]
         args: ["-c", "while true; do ping localhost; sleep 60; done"]
-        #securityContext:
-        #  privileged: true
+      - name: nginx
+        image: nginx
 ---
 apiVersion: v1
 kind: Service
@@ -73,14 +214,35 @@ spec:
     run: ping-$uuid-$i
   ports:
   - protocol: TCP
-    port: 80
-    name: nginx-server
-  - protocol: TCP
     port: 5000
-    targetPort: 3000
-    name: tcp-netcat
+    name: netcat
 EOF
     done
+}
+#istio.io/rev: default
+
+inject() {
+    local deploy=$1
+    local revision=${2:-default}
+    kubectl --context=$CONTEXT patch deploy $deploy -p '{"spec":{"template":{"metadata":{"labels":{"istio.io/rev":'"\"$revision\""'}}}}}' --type strategic
+}
+
+createRemoteService() {
+    local service=${1}
+
+    kubectl --context=$CONTEXT apply -f - <<EOF
+apiVersion: v1
+kind: Service
+metadata:
+  name: $service
+  labels:
+    app: ping
+spec:
+  ports:
+  - protocol: TCP
+    port: 5000
+    name: netcat
+EOF
 }
 
 createHeadlessService() {
@@ -94,20 +256,48 @@ metadata:
   labels:
     app: ping
 spec:
+  clusterIP: None
   ports:
   - protocol: TCP
-    port: 80
-    name: nginx-server
-  - protocol: TCP
     port: 5000
-    targetPort: 3000
-    name: tcp-netcat
+    name: netcat
 EOF
 }
 
-#annotations:
-#proxy.istio.io/config: "{\"holdApplicationUntilProxyStarts\":true,\"proxyMetadata\":{\"ISTIO_META_DNS_CAPTURE\":\"true\"}}"
-
-deleteMeshDeployments() {
+deleteMeshResources() {
     kubectl --context=$CONTEXT delete deploy,svc -l app=ping
+}
+
+kubectlc() {
+  kubectl --context=$CONTEXT "$@"
+}
+
+mesh-reprovision() {
+  cpr=$(kubectlc get controlplanerevisions -n istio-system -ojson | jq -r '.items[0].metadata.name')
+  kubectlc annotate controlplanerevisions -n istio-system $cpr mesh.cloud.google.com/force-reprovision=true
+}
+
+build-these() {
+  local cloud=$1 
+  shift 
+  local images="$@"
+
+  for image in $images; do 
+    ./quark.sh -b $image -c $cloud 
+  done
+}
+
+remote-secrets() {
+  local localCluster=$1 
+  local remoteCluster=$2
+
+  echo "Applying $remoteCluster remote secret to $localCluster"
+  istioctl --context=$remoteCluster create-remote-secret --name $remoteCluster -i aks-istio-system | kubectl --context=$localCluster apply -f -
+  sleep 3 
+  echo "Verifying newly applied remote cluster"
+  istioctl --context=$localCluster remote-clusters -i aks-istio-system
+}
+
+ic () {
+  istioctl --context=$CONTEXT "$@"
 }

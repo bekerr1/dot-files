@@ -264,3 +264,7 @@ ctl-ep-root-pass() {
     echo "Ab0xB@wks!"
 }
 alias ep-pass='ctl-ep-root-pass'
+
+mount-home() {
+  mount_smbfs //netapp\;brendank@rtpusers.eng.netapp.com:/users023/brendank /Users/brendank/seclab
+}

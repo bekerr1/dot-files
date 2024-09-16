@@ -26,3 +26,10 @@ format() {
 }
 
 alias uuidgen='uuidgen | tr "[:upper:]" "[:lower:]"'
+
+untils() {
+  local sleepCount=$1
+  shift
+  local cmd=$@
+  until eval "$cmd"; do echo "sleeping '$sleepCount' until '$cmd' evals"; sleep $sleepCount; done
+}
