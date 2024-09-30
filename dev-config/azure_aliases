@@ -3,6 +3,10 @@ my-aks-clusters() {
   az aks list -g brendank-nvc -otable
 }
 
+az-creds() {
+  az aks get-credentials -n $1 -g $2 --overwrite
+}
+
 az-ssh() {
   az ssh vm -g brendank-nvc-client -n brendank-nfs-client --local-user client
 }
@@ -19,14 +23,23 @@ acr-login-mm() {
 }
 
 mmqs-login() {
-  az account set --subscription $(mmqs)
   az-login
+  az account set --subscription $(mmqs)
 }
 nmqs-login() {
-  az account set --subscription $(nmqs)
   az-login
+  az account set --subscription $(nmqs)
 }
-
+nmqs-sp-login() {
+  az login --service-principal --username "582b8d02-9671-4890-aca4-b3b60fdbf6d2" \
+    --password "aUI8Q~ceY7iO0yg7at.QOUEpMnnNAajME4mzPcX1" \
+    --tenant "4b0911a0-929b-4715-944b-c03745165b3a"
+}
+mmqs-sp-login() {
+  az login --service-principal --username "c806b4ee-e975-47de-9567-f64a82b79a9d" \
+    --password "i2l8Q~GrLiQLQm_OpqyEZ8FJh5Zhzkrsg2wekc5-" \
+    --tenant "72f988bf-86f1-41af-91ab-2d7cd011db47"
+}
 
 mmqs() {
   echo "e3e8712f-8cda-4bce-8945-724815ce1fe3"

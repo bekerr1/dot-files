@@ -1,6 +1,6 @@
 echo "Sourcing .nvcclient_aliases"
 
-set -x
+#set -x
 
 CURRENT_CONTEXT=""
 kubectlc() {
@@ -75,8 +75,8 @@ AD_DNS=""
 create-sp() {
   local spuuid=$1
 
-  if ! $NVCCLIENTCLI storage_pool create \
-    --k8s_config $HOME/.kube/config \
+  if ! $NVCCLIENTCLI storage_pool --wait StoragePoolOnlineV2 create \
+    --k8s_config $KUBECONFIG \
     --k8s_namespace ${NAMESPACE:-"atom-quark"} \
     --owner_id $USER \
     --display_name $CLU_NAME-$(first_uuid_part "$spuuid") \
@@ -87,7 +87,12 @@ create-sp() {
     echo "Failed to create SP"
     return 1
   fi
-  until kubectlc wait -n $NAMESPACE ntapsp/$spuuid --for=condition=Online 2> /dev/null; do sleep 10; done
+  #$NVCCLIENTCLI wait_for storage_pool_online \
+  #  --logging_level debug \
+  #  --sp_uuid $spuuid \
+  #  --k8s_config $KUBECONFIG \
+  #  --k8s_namespace ${NAMESPACE:-"atom-quark"}
+  until kubectlc wait -n ${NAMESPACE:-"atom-quark"} ntapsp/$spuuid --for=condition=Online 2> /dev/null; do sleep 10; done
 }
 
 create-vol() {
@@ -111,7 +116,7 @@ create-vol() {
   create-snap-policy $spuuid $voluuid
 
   $NVCCLIENTCLI volume create \
-    --k8s_config $HOME/.kube/config \
+    --k8s_config $KUBECONFIG \
     --k8s_namespace ${NAMESPACE:-"atom-quark"} \
     --protocols $PROTOCOLS \
     --mount_path sp-$(first_uuid_part "$spuuid")-vol-$(first_uuid_part "$voluuid") \
@@ -122,7 +127,7 @@ create-vol() {
     --volume_name sp-$(first_uuid_part "$spuuid")-vol-$(first_uuid_part "$voluuid") \
     --volume_size $VOLUME_SIZE \
     $protocolArgs
-  until out=$(kubectlc wait -n $NAMESPACE ntapvol/$voluuid --for=condition=Online 2>&1); do sleep 10; done
+  until out=$(kubectlc wait -n ${NAMESPACE:-"atom-quark"} ntapvol/$voluuid --for=condition=Online 2>&1); do sleep 10; done
 }
 
 create-exp-policy() {
@@ -150,7 +155,7 @@ apiVersion: quark.netapp.io/v1alpha1
 kind: NetAppSnapshotPolicy
 metadata:
   name: $(snap-policy-name $spuuid $voluuid)
-  namespace: $NAMESPACE
+  namespace: ${NAMESPACE:-"atom-quark"}
   labels:
     quark.netapp.io/volume: $voluuid
     quark.netapp.io/owner: $USER
@@ -270,9 +275,29 @@ set-cloud-args() {
     CLU_RESOURCE_GROUP="$USER-nvc"
     #CLU_LOCATION=$(az aks show --resource-group=$CLU_RESOURCE_GROUP -n $CLU_NAME --query "location" --output tsv)
     #CLOUD_ARGS="--zone $CLU_LOCATION-1 --available_zones $CLU_LOCATION-1"
-    CLOUD_ARGS="$CLOUD_ARGS --delegated_subnets 0de2a4d2-7957-4680-9f5f-7b1ffc04afc8"
+
+    pns=$(kubectlc get pn -ojson | jq -r '.items | length')
+    if [[ $pns -gt 0 ]]; then
+      firstDSGUID=$(kubectlc get pn -ojson | jq -r '.items[0].spec.subnetGUID')
+      CLOUD_ARGS="$CLOUD_ARGS --delegated_subnets $firstDSGUID"
+    fi
     set-az-protocol-args
     ;;
   esac
 }
 
+
+reconcile-mesh() {
+  local subscription=$1
+  local clusterName=$2
+  local resourceGroup=$3
+
+  ns=$(kubectlc get quark -ojson | jq -r '.items[0].spec.namespace')
+
+  make azure-reconcile-servicemesh \
+	  QUARK_NAMESPACE=${ns:-"quark-system"} \
+	  KUBECONFIG=$HOME/.kube/config \
+    AZURE_SUBSCRIPTION_ID=$1 \
+    AKS_CLUSTER_NAME=$clusterName \
+    AKS_RESOURCE_GROUP=$resourceGroup
+}

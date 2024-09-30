@@ -5,43 +5,47 @@ alias gl="git log"
 alias gls="git log --stat"
 alias gb="git branch"
 ga() {
-    git add "$@"
+    git add $@
 }
 gap() {
-    git add -p "$@"
+    git add -p $@
 }
 gc() {
     git commit -m "$@"
 }
 gch() {
-    git checkout -- $@
+    git checkout $@
 }
 alias grc="git rebase --continue"
-alias gcpc="git cherry-pick --continue"
+alias gpc="git cherry-pick --continue"
 alias gl="git log"
 
 pullmaster() {
-    if [ -d "$MASTER_WORKTREE" ]; then
-	cd $MASTER_WORKTREE
-	git pull
-	cd -
-    else
-	git checkout master
-	git pull
-	git checkout -
-    fi
+  if [ -d "$MASTER_WORKTREE" ]; then
+	  cd $MASTER_WORKTREE
+	  git pull
+	  cd -
+  else
+	  git checkout master
+	  git pull
+	  git checkout -
+  fi
 }
 
 masterbase() {
     git rebase -i master
 }
-alias mb=masterbase
+alias gmreb=masterbase
 
 function tag() {
     local hash=$(git log --pretty=format:'%h' -n 1)
     echo "$USER-$hash"
 }
 
-function gb-rename() {
+function gbren() {
   git branch -m $1
+}
+
+gdiff-latest() {
+  git diff HEAD^ HEAD
 }
