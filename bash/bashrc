@@ -1,4 +1,4 @@
-export TERM=xterm-kitty
+export TERM="xterm-kitty"
 
 tput cup 9999 0
 
@@ -18,7 +18,7 @@ export BR_BROCK=0
 
 export GOPATH="$HOME/go"
 if [ "$HOSTNAME" == "b3k3r-ubuntu1" ]; then
-    export GOPATH="$HOME/Development/go"
+  export GOPATH="$HOME/Development/go"
 fi
 
 export GOBIN="$GOPATH/bin"
