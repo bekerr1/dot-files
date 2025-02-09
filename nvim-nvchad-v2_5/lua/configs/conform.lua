@@ -3,7 +3,7 @@ local options = {
     lua = { "stylua" },
     go = { "goimports", "gofmt" },
     rust = { "rustfmt" },
-    sh = { "shfmt" },
+    ---sh = { "shfmt" },
     json = { "jq" },
     yaml = { "prettier" },
   },

@@ -2,11 +2,11 @@
 require("nvchad.configs.lspconfig").defaults()
 
 local lspconfig = require "lspconfig"
-local utils     = require "lspconfig/util"
-local nvlsp     = require "nvchad.configs.lspconfig"
+local utils = require "lspconfig/util"
+local nvlsp = require "nvchad.configs.lspconfig"
 
 -- Configure the gopls server
-lspconfig.gopls.setup({
+lspconfig.gopls.setup {
   on_attach = nvlsp.on_attach,
   capabilities = nvlsp.capabilities,
   filetypes = { "go", "gomod", "gowork", "gotmpl" },
@@ -22,4 +22,12 @@ lspconfig.gopls.setup({
       staticcheck = true,
     },
   },
-})
+}
+
+-- Configure the rust server
+lspconfig.rust_analyzer.setup {
+  on_attach = nvlsp.on_attach,
+  capabilities = nvlsp.capabilities,
+  filetypes = { "rust" },
+  root_dir = utils.root_pattern("Cargo.toml", "rust-project.json"),
+}

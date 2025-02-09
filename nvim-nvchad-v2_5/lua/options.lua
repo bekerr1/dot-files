@@ -11,9 +11,9 @@ o.scrolloff = 999
 
 -- Create a function to set tabstop and shiftwidth easily
 local set_indent = function(tabstop, shiftwidth, expandtab)
-  vim.bo.tabstop = tabstop       -- Number of spaces a <Tab> counts for
+  vim.bo.tabstop = tabstop -- Number of spaces a <Tab> counts for
   vim.bo.shiftwidth = shiftwidth -- Number of spaces used for autoindent
-  vim.bo.expandtab = expandtab   -- Use spaces instead of tabs (true) or tabs (false)
+  vim.bo.expandtab = expandtab -- Use spaces instead of tabs (true) or tabs (false)
 end
 
 -- Autocmd group to handle filetypes
