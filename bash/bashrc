@@ -44,7 +44,6 @@ export CLOUDSDK_PYTHON=python3
 #    fi
 #fi
 
-
 ### MANAGED BY RANCHER DESKTOP START (DO NOT EDIT)
 export PATH="/Users/brendank/.rd/bin:$PATH"
 ### MANAGED BY RANCHER DESKTOP END (DO NOT EDIT)
@@ -59,3 +58,10 @@ if [ -f '$HOME/google-cloud-sdk/path.bash.inc' ]; then . '$HOME/google-cloud-sdk
 if [ -f '$HOME/google-cloud-sdk/completion.bash.inc' ]; then . '$HOME/google-cloud-sdk/completion.bash.inc'; fi
 
 [[ -f $HOME/.bashintro.txt ]] && $HOME/.bashintro.txt
+
+export PATH="$PATH:~/.local/share/nvim/mason/bin/"
+
+export GEM_HOME="$HOME/.gem/ruby"
+export GEM_PATH="$HOME/.gem/ruby"
+export PATH="$PATH:$HOME/.gem/ruby/bin"
+. "$HOME/.cargo/env"

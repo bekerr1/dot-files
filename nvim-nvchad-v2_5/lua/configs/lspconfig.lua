@@ -31,3 +31,19 @@ lspconfig.rust_analyzer.setup {
   filetypes = { "rust" },
   root_dir = utils.root_pattern("Cargo.toml", "rust-project.json"),
 }
+
+lspconfig.solargraph.setup {
+  on_attach = nvlsp.on_attach,
+  capabilities = nvlsp.capabilities,
+  filetypes = { "ruby", "eruby", "vagrantfile" },
+  ---root_dir = utils.root_pattern("Gemfile", ".git"),
+  cmd = { os.getenv "HOME" .. "/.gem/ruby/bin/solargraph", "stdio" },
+
+  settings = {
+    solargraph = {
+      autoformat = false,
+      diagnostics = false,
+      formatting = false,
+    },
+  },
+}
