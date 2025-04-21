@@ -33,11 +33,19 @@ vim.api.nvim_create_autocmd("FileType", {
   end,
 })
 
+vim.api.nvim_create_autocmd("BufRead", {
+  pattern = { "dev-*.sh", "quark.sh" },
+  callback = function()
+    -- Best practice for Bash/Shell scripts: spaces, width of 2
+    set_indent(2, 2, true) -- Bash uses spaces, 2 spaces per indent
+  end,
+})
+
 vim.api.nvim_create_autocmd("FileType", {
   pattern = { "sh", "bash", "zsh" },
   callback = function()
     -- Best practice for Bash/Shell scripts: spaces, width of 2
-    set_indent(2, 2, true) -- Bash uses spaces, 2 spaces per indent
+    set_indent(4, 4, false) -- Bash uses spaces, 2 spaces per indent
   end,
 })
 
