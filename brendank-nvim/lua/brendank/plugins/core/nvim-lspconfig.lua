@@ -1,18 +1,71 @@
+local M = {}
+local map = vim.keymap.set
+
+M.on_attach = function(_, bufnr)
+	local function opts(desc)
+		return { buffer = bufnr, desc = "LSP " .. desc }
+	end
+
+	map("n", "gD", vim.lsp.buf.declaration, opts("Go to declaration"))
+	map("n", "gd", vim.lsp.buf.definition, opts("Go to definition"))
+end
+
+M.on_init = function(client, _)
+	if client.supports_method("textDocument/semanticTokens") then
+		client.server_capabilities.semanticTokensProvider = nil
+	end
+end
+
+M.capabilities = vim.lsp.protocol.make_client_capabilities()
+
 return {
 	{
-		"neovim/nvim-lspconfig",
-		event = 'BufReadPre',
+		"williamboman/mason-lspconfig.nvim",
+		dependencies = { "mason.nvim" },
 		config = function()
-			local lspconfig = require("lspconfig")
-			local utils = require("lspconfig/util")
-			local conf = require("brendank.configs.nvim-lspconfig")
+			require("mason-lspconfig").setup({
+				ensure_installed = { "gopls", "lua_ls", "rust_analyzer" },
+				automatic_installation = true,
+			})
+		end,
+	},
+	{
+		"neovim/nvim-lspconfig",
+		event = { "BufReadPre", "BufNewFile" },
+		dependencies = {
+			"hrsh7th/cmp-nvim-lsp",
+			"mason-lspconfig.nvim",
+		},
+		config = function()
+			local cmp_nvim_lsp_capabilities = require("cmp_nvim_lsp").default_capabilities()
+			local capabilities = vim.tbl_deep_extend("force", cmp_nvim_lsp_capabilities, M.capabilities)
 
-			-- Configure the gopls server
-			lspconfig.gopls.setup({
-				on_attach = conf.on_attach,
-				capabilities = conf.capabilities,
-				filetypes = { "go", "gomod", "gowork", "gotmpl" },
-				root_dir = utils.root_pattern("go.work", "go.mod", ".git"),
+			require("lspconfig").lua_ls.setup({
+				on_attach = M.on_attach,
+				capabilities = capabilities,
+				on_init = M.on_init,
+				settings = {
+					Lua = {
+						runtime = { version = "LuaJIT" },
+						diagnostics = { globals = { "vim" } },
+						workspace = {
+							library = {
+								vim.api.nvim_get_runtime_file("", true),
+								vim.fn.expand("$VIMRUNTIME/lua"),
+								vim.fn.stdpath("data") .. "/lazy/lazy.nvim/lua/lazy",
+								"${3rd}/luv/library",
+							},
+							checkThirdParty = false,
+						},
+						telemetry = { enable = false },
+						completion = { callSnippet = "Replace" },
+					},
+				},
+			})
+
+			require("lspconfig").gopls.setup({
+				capabilities = capabilities,
+				on_attach = M.on_attach,
 				settings = {
 					gopls = {
 						completeUnimported = true,
@@ -24,31 +77,14 @@ return {
 						staticcheck = true,
 					},
 				},
+				root_dir = require("lspconfig/util").root_pattern("go.work", "go.mod", ".git"),
 			})
 
-			-- Configure the rust server
-			lspconfig.rust_analyzer.setup({
-				on_attach = conf.on_attach,
-				capabilities = conf.capabilities,
-				filetypes = { "rust" },
-				root_dir = utils.root_pattern("Cargo.toml", "rust-project.json"),
+			require("lspconfig").rust_analyzer.setup({
+				on_attach = M.on_attach,
+				capabilities = capabilities,
+				root_dir = require("lspconfig/util").root_pattern("Cargo.toml", "rust-project.json"),
 			})
-
-			--lspconfig.solargraph.setup({
-			--	on_attach = conf.on_attach,
-			--	capabilities = conf.capabilities,
-			--	filetypes = { "ruby", "eruby", "vagrantfile" },
-			--	---root_dir = utils.root_pattern("Gemfile", ".git"),
-			--	cmd = { os.getenv("HOME") .. "/.gem/ruby/bin/solargraph", "stdio" },
-
-			--	settings = {
-			--		solargraph = {
-			--			autoformat = false,
-			--			diagnostics = false,
-			--			formatting = false,
-			--		},
-			--	},
-			--})
 		end,
 	},
 }
