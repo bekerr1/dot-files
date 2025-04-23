@@ -3,7 +3,6 @@ return {
 		"github/copilot.vim",
 		event = "InsertEnter",
 		config = function()
-			-- Optional: Disable for large files
 			vim.api.nvim_create_autocmd("BufReadPre", {
 				callback = function()
 					local size = vim.fn.getfsize(vim.fn.expand("<afile>"))

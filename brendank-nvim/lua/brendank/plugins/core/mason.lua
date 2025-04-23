@@ -2,6 +2,7 @@ return {
 	{
 		"williamboman/mason.nvim",
 		lazy = true,
+		version = "1.10.0",
 		dependencies = {
 			{
 				"zapling/mason-lock.nvim",
@@ -16,10 +17,16 @@ return {
 					extensions = { "mason" },
 				},
 			},
+			-- {
+			-- 	"williamboman/mason-lspconfig.nvim",
+			-- 	version = "1.29.0",
+			-- },
 		},
 
 		---@class MasonSettings
 		opts = {
+			-- registries = { "path:/tmp/mason-registry/" },
+			-- log_level = vim.log.levels.DEBUG,
 			-- Where Mason should put its bin location in your PATH. Can be one of:
 			-- - "prepend" (default, Mason's bin location is put first in PATH)
 			-- - "append" (Mason's bin location is put at the end of PATH)
@@ -38,22 +45,20 @@ return {
 		config = function(_, opts)
 			require("mason").setup(opts)
 
-			-- -- handle opts.ensure_installed
-			-- local registry = require("mason-registry")
-			-- registry.refresh(function()
-			-- 	if opts.ensure_installed == nil then
-			-- 		return
-			-- 	end
-			--
-			-- 	for _, pkg_name in ipairs(opts.ensure_installed) do
-			-- 		-- print("loading " .. pkg_name)
-			-- 		local pkg = registry.get_package(pkg_name)
-			-- 		if not pkg:is_installed() then
-			-- 			pkg:install()
-			-- 		end
-			-- 	end
-			-- end)
+			local registry = require("mason-registry")
+			registry.refresh(function()
+				if opts.ensure_installed == nil then
+					return
+				end
+
+				for _, pkg_name in ipairs(opts.ensure_installed) do
+					local pkg = registry.get_package(pkg_name)
+					if not pkg:is_installed() then
+						pkg:install()
+					end
+				end
+			end)
 		end,
-		cmd = { "MasonInstallAll", "Mason", "MasonInstall", "MasonUpdate", "MasonUninstall" },
+		cmd = { "Mason", "MasonInstall", "MasonInstallAll", "MasonUpdate", "MasonUninstall" },
 	},
 }

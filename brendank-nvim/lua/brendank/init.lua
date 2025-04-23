@@ -5,7 +5,12 @@
 require("brendank.configs.options")
 require("brendank.configs.autocmds")
 require("brendank.configs.keymaps")
-require("brendank.configs.nvim-lspconfig")
 
 -- lazy
 require("brendank.configs.lazy")
+
+--vim.lsp.config("luals", {
+--	cmd = { "lua-language-server" },
+--	filetypes = { "lua" },
+--	root_markers = { ".luarc.json", ".luarc.jsonc" },
+--})

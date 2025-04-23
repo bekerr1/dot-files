@@ -28,43 +28,15 @@ noremap("n", "q?", "<Nop>")
 map("n", "ss", ":w<CR>")
 map("n", "QQ", ":q<CR>")
 
----- Tab movement
---vimmap("n", "L", function()
---	require("nvchad.tabufline").next()
---end, { desc = "buffer goto next" })
---vimmap("n", "H", function()
---	require("nvchad.tabufline").prev()
---end, { desc = "buffer goto prev" })
-
 -- Diag
 map("n", "<space>e", ':lua vim.diagnostic.open_float(0, {scope="line"})<CR>')
 
-function M.nvimtree_keymaps()
-	--local api = require("nvim-tree.api")
-	return {
-		{ "<C-n>", ":NvimTreeToggle<CR>", desc = "Toggle NvimTree" },
-	}
-end
-
-function M.copilot_keymaps()
-	return {
-		{ "<leader>cp", ":Copilot panel<CR>", desc = "Copilot panel" },
-	}
-end
-
 function M.telescope_keymaps()
-	--- @param set_cwd boolean
 	local function open_file_in_other_project(set_cwd)
 		vim.g.project_set_cwd = set_cwd
 		require("telescope").extensions.project.project({ display_type = "full", hide_workspace = true })
 	end
-
 	local builtin = require("telescope.builtin")
-	vim.keymap.set("n", "<leader>ff", builtin.find_files, {})
-	vim.keymap.set("n", "<leader>fg", builtin.live_grep, {})
-	vim.keymap.set("n", "<leader>fb", builtin.buffers, {})
-	vim.keymap.set("n", "<leader>fh", builtin.help_tags, {})
-
 	return {
 		{ "<leader>fi", builtin.find_files, desc = "[f]ile f[i]nd" },
 		{ "<leader>ff", builtin.current_buffer_fuzzy_find, desc = "[f]uzzy [f]ind" },

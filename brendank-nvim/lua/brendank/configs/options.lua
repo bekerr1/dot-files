@@ -25,27 +25,9 @@ vim.opt.updatetime = 200 -- Save swap file and trigger CursorHold
 -- skip startup screen
 vim.opt.shortmess:append("I")
 
--- fillchars
--- vim.opt.fillchars = {
--- 	foldopen = "",
--- 	foldclose = "",
--- 	-- fold = "⸱",
--- 	fold = " ",
--- 	foldsep = " ",
--- 	-- diff = "╱",
--- 	-- diff = "╱",
--- 	diff = "░",
--- 	-- diff = "·",
--- 	eob = " ",
--- }
-
 -- line numbers
 vim.opt.number = true
 vim.opt.relativenumber = false
-
--- NOTE: do not set a global ruler here, as it will show in undesirable places.
--- Instead, set this in the per-language config files.
--- vim.opt.colorcolumn = "80"
 
 -- incremental search
 vim.opt.incsearch = true

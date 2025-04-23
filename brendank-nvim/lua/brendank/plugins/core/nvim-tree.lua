@@ -14,6 +14,6 @@ return {
 	},
 	config = function()
 		require("nvim-tree").setup({})
+		vim.keymap.set("n", "<C-n>", ":NvimTreeToggle<CR>", { desc = "Toggle NvimTree" })
 	end,
-	keys = require("brendank.configs.keymaps").nvimtree_keymaps(),
 }
