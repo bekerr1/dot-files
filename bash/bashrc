@@ -1,4 +1,5 @@
-export TERM=xterm-kitty
+#export TERM=xterm-kitty
+export TERM=screen-256color
 
 tput cup 9999 0
 
@@ -8,9 +9,8 @@ alias vbrc="vim ~/.bashrc"
 
 PS1="\[\033[38;5;7m\][\[$(tput sgr0)\]\[\033[38;5;9m\]\h\[$(tput sgr0)\]\[\033[38;5;7m\]]\[$(tput sgr0)\]\[\033[38;5;15m\] \[$(tput sgr0)\]\[\033[38;5;7m\]\w\[$(tput sgr0)\]\[\033[38;5;15m\] \[$(tput sgr0)\]\[\033[38;5;9m\]$\[$(tput sgr0)\]\[\033[38;5;15m\] \[$(tput sgr0)\]"
 
-for f in ~/.dev-config/*; do source $f; done
+for f in ~/.dev-config/*; do source $f &> /dev/null || echo "failed to source $f"; done
 
-#export TERM=xterm-256color
 export GOROOT="/usr/local/go"
 export GOPATHBIN="/usr/local/go/bin"
 
@@ -58,4 +58,12 @@ if [ -f '$HOME/google-cloud-sdk/path.bash.inc' ]; then . '$HOME/google-cloud-sdk
 # The next line enables shell command completion for gcloud.
 if [ -f '$HOME/google-cloud-sdk/completion.bash.inc' ]; then . '$HOME/google-cloud-sdk/completion.bash.inc'; fi
 
-[[ -f $HOME/.bashintro.txt ]] && $HOME/.bashintro.txt
+[[ -f $HOME/.bashintro.txt ]] && cat $HOME/.bashintro.txt
+
+. "$HOME/.cargo/env"
+
+export PATH="$PATH:~/.local/share/nvim/mason/bin/"
+
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
+[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
