@@ -1,4 +1,5 @@
-export TERM="xterm-kitty"
+#export TERM="xterm-kitty"
+export TERM=screen-256color
 
 tput cup 9999 0
 
@@ -10,7 +11,6 @@ PS1="\[\033[38;5;7m\][\[$(tput sgr0)\]\[\033[38;5;9m\]\h\[$(tput sgr0)\]\[\033[3
 
 for f in ~/.dev-config/*; do source $f; done
 
-#export TERM=xterm-256color
 export GOROOT="/usr/local/go"
 export GOPATHBIN="/usr/local/go/bin"
 
@@ -65,3 +65,7 @@ export GEM_HOME="$HOME/.gem/ruby"
 export GEM_PATH="$HOME/.gem/ruby"
 export PATH="$PATH:$HOME/.gem/ruby/bin"
 . "$HOME/.cargo/env"
+
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
+[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
