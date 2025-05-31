@@ -33,8 +33,7 @@ vim.api.nvim_create_autocmd("FileType", {
 vim.api.nvim_create_autocmd("FileType", {
 	pattern = { "c", "cpp", "h" },
 	callback = function()
-		-- Best practice for C/C++: tabs, width of 4
-		set_indent(4, 4, false) -- C/C++ typically uses actual tabs, 4 spaces per indent
+		set_indent(4, 4, true) -- C/C++ typically uses actual tabs, 4 spaces per indent
 	end,
 })
 

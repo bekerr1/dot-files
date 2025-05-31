@@ -12,7 +12,6 @@ if not vim.loop.fs_stat(lazypath) then
 end
 vim.opt.rtp:prepend(lazypath)
 
---{ import = "brendank.plugins.language" },
 require("lazy").setup({
 	spec = {
 		{ import = "brendank.plugins" },

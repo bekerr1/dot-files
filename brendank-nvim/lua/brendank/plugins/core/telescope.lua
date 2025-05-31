@@ -93,12 +93,12 @@ return {
 
 			telescope.setup(opts)
 
-			-- telescope.load_extension("fzf")
 			telescope.load_extension("live_grep_args")
 			telescope.load_extension("ui-select")
-			-- telescope.load_extension("recent_files")
 			telescope.load_extension("project")
 			telescope.load_extension("yank_history")
+
+			--require("brendank.configs.keymaps").telescope_keymaps()
 		end,
 		keys = require("brendank.configs.keymaps").telescope_keymaps(),
 	},

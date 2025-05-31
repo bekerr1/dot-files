@@ -1,8 +1,10 @@
+vim.env.PATH = vim.env.PATH .. ":" .. vim.fn.stdpath("data") .. "/mason/bin"
+
 return {
 	{
 		"williamboman/mason.nvim",
 		lazy = true,
-		version = "1.10.0",
+		version = "1.11.0",
 		dependencies = {
 			{
 				"zapling/mason-lock.nvim",

@@ -7,13 +7,13 @@ vim.opt.termguicolors = true
 
 return {
 	"nvim-tree/nvim-tree.lua",
-	version = "*",
+	version = "1.12.0",
 	lazy = false,
 	dependencies = {
 		"nvim-tree/nvim-web-devicons",
 	},
 	config = function()
 		require("nvim-tree").setup({})
-		vim.keymap.set("n", "<C-n>", ":NvimTreeToggle<CR>", { desc = "Toggle NvimTree" })
+		vim.keymap.set("n", "<C-n>", ":NvimTreeFindFileToggle<CR>", { desc = "Toggle NvimTree to File" })
 	end,
 }

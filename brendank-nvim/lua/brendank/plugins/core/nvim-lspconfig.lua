@@ -21,6 +21,7 @@ M.capabilities = vim.lsp.protocol.make_client_capabilities()
 return {
 	{
 		"williamboman/mason-lspconfig.nvim",
+		version = "2.0.0-rc.1",
 		dependencies = { "mason.nvim" },
 		config = function()
 			require("mason-lspconfig").setup({
@@ -32,6 +33,7 @@ return {
 	{
 		"neovim/nvim-lspconfig",
 		event = { "BufReadPre", "BufNewFile" },
+		version = "2.0.0",
 		dependencies = {
 			"hrsh7th/cmp-nvim-lsp",
 			"mason-lspconfig.nvim",
@@ -84,6 +86,19 @@ return {
 				on_attach = M.on_attach,
 				capabilities = capabilities,
 				root_dir = require("lspconfig/util").root_pattern("Cargo.toml", "rust-project.json"),
+			})
+
+			require("lspconfig").clangd.setup({
+				on_attach = M.on_attach,
+				capabilities = capabilities,
+				cmd = { "clangd", "--background-index" },
+				filetypes = { "c", "cpp", "objc", "objcpp" },
+				--root_dir = require("lspconfig.util").root_pattern("compile_commands.json", ".git"),
+				settings = {
+					clangd = {
+						fallbackFlags = { "-Wall", "-I/usr/include" },
+					},
+				},
 			})
 		end,
 	},
