@@ -44,3 +44,49 @@ vim.api.nvim_create_autocmd("FileType", {
 		set_indent(4, 4, true) -- Rust uses spaces, 4 spaces per indent
 	end,
 })
+
+-- Smart navigation for markdown
+vim.api.nvim_create_autocmd("FileType", {
+	pattern = { "markdown", "text", "rst", "tex" },
+	callback = function()
+		vim.opt_local.wrap = true
+		vim.opt_local.linebreak = true
+		vim.opt_local.breakindent = true
+		vim.opt_local.number = false
+		vim.opt_local.relativenumber = false
+
+		vim.keymap.set("n", "j", "gj", { buffer = true, silent = true })
+		vim.keymap.set("n", "k", "gk", { buffer = true, silent = true })
+		vim.keymap.set("n", "0", "g0", { buffer = true, silent = true })
+		vim.keymap.set("n", "$", "g$", { buffer = true, silent = true })
+		vim.keymap.set("n", "^", "g^", { buffer = true, silent = true })
+		---- optional: better horizontal motions
+		--vim.keymap.set("n", "w", "gw", { buffer = true, silent = true })
+		--vim.keymap.set("n", "b", "gb", { buffer = true, silent = true })
+	end,
+})
+
+vim.api.nvim_create_autocmd("BufEnter", {
+	callback = function(args)
+		local buf = args.buf
+		if vim.bo[buf].buftype ~= "" then
+			return
+		end -- Skip special buffers like diffs
+
+		local cwd = vim.loop.cwd() -- get current working directory
+		local file_path = vim.fn.expand("%:p") -- full path of current file
+
+		if file_path == "" then
+			return -- no file (e.g. no name buffer), skip
+		end
+
+		-- Check if file_path starts with cwd
+		if not file_path:find(cwd, 1, true) then
+			-- File is outside cwd, so change cwd to file's directory
+			local file_dir = vim.fn.fnamemodify(file_path, ":h")
+			vim.cmd("lcd " .. vim.fn.fnameescape(file_dir))
+			-- optionally print message for debugging:
+			-- print("Changed cwd to " .. file_dir)
+		end
+	end,
+})
